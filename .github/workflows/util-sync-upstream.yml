@@ -1,0 +1,92 @@
+name: Sync from upstream n8n
+
+on:
+  schedule:
+    # Mondays at 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/n8n-io/n8n.git
+
+      - name: Fetch upstream
+        run: git fetch upstream master
+
+      - name: Check if already up to date
+        id: check
+        run: |
+          BEHIND=$(git rev-list --count HEAD..upstream/master)
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          if [ "$BEHIND" = "0" ]; then
+            echo "Fork master is already up to date with upstream."
+          else
+            echo "Fork master is $BEHIND commit(s) behind upstream/master."
+          fi
+
+      - name: Attempt merge
+        if: steps.check.outputs.behind != '0'
+        id: merge
+        run: |
+          set +e
+          git merge --no-edit upstream/master
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -eq 0 ]; then
+            echo "result=clean" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort || true
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push merged master
+        if: steps.merge.outputs.result == 'clean'
+        run: git push origin master
+
+      - name: Open conflict-resolution PR
+        if: steps.merge.outputs.result == 'conflict'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_EVENT: ${{ github.event_name }}
+          GH_SERVER_URL: ${{ github.server_url }}
+          GH_REPO: ${{ github.repository }}
+          GH_RUN_ID: ${{ github.run_id }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          BRANCH="sync/upstream-${DATE}"
+          git checkout -b "$BRANCH"
+          git merge --no-commit --no-ff upstream/master || true
+          git add -A
+          git commit -m "chore: sync upstream n8n-io/master (conflicts to resolve)" \
+            -m "Upstream had conflicts that the automated sync could not resolve. Resolve markers in the diff, then merge."
+          git push -u origin "$BRANCH"
+          {
+            echo "Automated upstream sync hit merge conflicts. Resolve the conflict markers in the diff, push to this branch, then merge."
+            echo ""
+            echo "Triggered by: ${GH_EVENT}"
+            echo "Run: ${GH_SERVER_URL}/${GH_REPO}/actions/runs/${GH_RUN_ID}"
+          } > /tmp/pr-body.md
+          gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "Sync upstream n8n-io/master (${DATE}) — conflicts" \
+            --body-file /tmp/pr-body.md
