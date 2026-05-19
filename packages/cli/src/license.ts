@@ -482,6 +482,7 @@ export class License implements LicenseProvider {
 
 	/** @deprecated Use `LicenseState` instead. */
 	getTeamProjectLimit() {
+		if (process.env.N8N_ENABLE_SELF_HOSTED_FEATURES === 'true') return UNLIMITED_LICENSE_QUOTA;
 		return this.getValue(LICENSE_QUOTAS.TEAM_PROJECT_LIMIT) ?? 0;
 	}
 
