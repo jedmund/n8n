@@ -290,6 +290,7 @@ export class LicenseState {
 	}
 
 	getMaxTeamProjects() {
+		if (process.env.N8N_ENABLE_SELF_HOSTED_FEATURES === 'true') return UNLIMITED_LICENSE_QUOTA;
 		return this.getValue('quota:maxTeamProjects') ?? 0;
 	}
 
