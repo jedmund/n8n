@@ -1,5 +1,5 @@
 import type { LicenseProvider } from '@n8n/backend-common';
-import { Logger } from '@n8n/backend-common';
+import { Logger, isSelfHostedFeatureOverride } from '@n8n/backend-common';
 import { GlobalConfig } from '@n8n/config';
 import {
 	DEFAULT_WORKFLOW_HISTORY_PRUNE_LIMIT,
@@ -284,7 +284,7 @@ export class License implements LicenseProvider {
 	}
 
 	isLicensed(feature: BooleanLicenseFeature) {
-		if (process.env.N8N_ENABLE_SELF_HOSTED_SSO === 'true' && feature === 'feat:oidc') return true;
+		if (isSelfHostedFeatureOverride(feature)) return true;
 		return this.manager?.hasFeatureEnabled(feature) ?? false;
 	}
 
