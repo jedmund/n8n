@@ -58,6 +58,14 @@ const showAuthViewMessage = (messageData: Parameters<typeof toast.showMessage>[0
 };
 
 onMounted(() => {
+	// Fork-only: auto-redirect to the OIDC provider when OIDC is the active
+	// authentication method. Visit /signin?form=true to bypass and access the
+	// owner emergency-access form (e.g. when the IdP is down).
+	if (route.query.form !== 'true' && ssoStore.isDefaultAuthenticationOidc && ssoStore.oidc.loginUrl) {
+		window.location.href = ssoStore.oidc.loginUrl;
+		return;
+	}
+
 	// An SSO login denied by role mapping ("Block access"): the user authenticated
 	// fine at the IdP, they are simply not allowed in, so say exactly that.
 	if (route.query[SSO_ERROR_QUERY_PARAM] === SSO_ERROR_ACCESS_DENIED) {
