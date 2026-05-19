@@ -26,6 +26,17 @@ export const SELF_HOSTED_FEATURES: readonly BooleanLicenseFeature[] = [
 	'feat:projectRole:admin',
 	'feat:projectRole:editor',
 	'feat:projectRole:viewer',
+	'feat:folders',
+	'feat:variables',
+	'feat:workflowDiffs',
+	'feat:namedVersions',
+	'feat:advancedExecutionFilters',
+	'feat:debugInEditor',
+	'feat:advancedPermissions',
+	'feat:workerView',
+	'feat:apiKeyScopes',
+	'feat:communityNodes:customRegistry',
+	'feat:binaryDataS3',
 ];
 
 export function isSelfHostedFeatureOverride(
