@@ -31,6 +31,8 @@ export class LicenseState {
 	 * If the feature is an array of strings, it checks if any of the features are licensed
 	 */
 	isLicensed(feature: BooleanLicenseFeature | BooleanLicenseFeature[]) {
+		if (this.isSelfHostedSsoOverride(feature)) return true;
+
 		this.assertProvider();
 
 		if (typeof feature === 'string') return this.licenseProvider.isLicensed(feature);
@@ -42,6 +44,12 @@ export class LicenseState {
 		}
 
 		return false;
+	}
+
+	private isSelfHostedSsoOverride(feature: BooleanLicenseFeature | BooleanLicenseFeature[]) {
+		if (process.env.N8N_ENABLE_SELF_HOSTED_SSO !== 'true') return false;
+		if (typeof feature === 'string') return feature === 'feat:oidc';
+		return feature.includes('feat:oidc');
 	}
 
 	getValue<T extends keyof FeatureReturnType>(feature: T): FeatureReturnType[T] {
