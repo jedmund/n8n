@@ -11,6 +11,31 @@ class ProviderNotSetError extends UnexpectedError {
 	}
 }
 
+/**
+ * Fork-only: features unlocked when N8N_ENABLE_SELF_HOSTED_FEATURES=true,
+ * bypassing the enterprise license check. Consumed by both
+ * `LicenseState.isLicensed()` and `License.isLicensed()` so route guards,
+ * module registration, and frontend gating all honor the override.
+ */
+export const SELF_HOSTED_FEATURES: readonly BooleanLicenseFeature[] = [
+	'feat:oidc',
+	'feat:sharing',
+	'feat:logStreaming',
+	'feat:sourceControl',
+	'feat:externalSecrets',
+	'feat:projectRole:admin',
+	'feat:projectRole:editor',
+	'feat:projectRole:viewer',
+];
+
+export function isSelfHostedFeatureOverride(
+	feature: BooleanLicenseFeature | BooleanLicenseFeature[],
+): boolean {
+	if (process.env.N8N_ENABLE_SELF_HOSTED_FEATURES !== 'true') return false;
+	if (typeof feature === 'string') return SELF_HOSTED_FEATURES.includes(feature);
+	return feature.some((f) => SELF_HOSTED_FEATURES.includes(f));
+}
+
 @Service()
 export class LicenseState {
 	licenseProvider: LicenseProvider | null = null;
@@ -31,7 +56,7 @@ export class LicenseState {
 	 * If the feature is an array of strings, it checks if any of the features are licensed
 	 */
 	isLicensed(feature: BooleanLicenseFeature | BooleanLicenseFeature[]) {
-		if (this.isSelfHostedSsoOverride(feature)) return true;
+		if (isSelfHostedFeatureOverride(feature)) return true;
 
 		this.assertProvider();
 
@@ -44,12 +69,6 @@ export class LicenseState {
 		}
 
 		return false;
-	}
-
-	private isSelfHostedSsoOverride(feature: BooleanLicenseFeature | BooleanLicenseFeature[]) {
-		if (process.env.N8N_ENABLE_SELF_HOSTED_SSO !== 'true') return false;
-		if (typeof feature === 'string') return feature === 'feat:oidc';
-		return feature.includes('feat:oidc');
 	}
 
 	getValue<T extends keyof FeatureReturnType>(feature: T): FeatureReturnType[T] {
