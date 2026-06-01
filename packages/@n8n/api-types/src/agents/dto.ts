@@ -55,3 +55,15 @@ export class AgentDisconnectIntegrationDto extends Z.class({
 	type: z.string().min(1),
 	credentialId: z.string().min(1),
 }) {}
+
+export class PublishAgentDto extends Z.class({
+	versionId: z.string().min(1).optional(),
+}) {}
+
+export class RevertAgentToVersionDto extends Z.class({
+	versionId: z.string().min(1),
+}) {}
+
+export class CreateSlackAgentAppDto extends Z.class({
+	appConfigurationToken: z.string().min(1),
+}) {}

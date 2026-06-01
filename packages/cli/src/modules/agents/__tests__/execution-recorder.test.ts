@@ -80,38 +80,6 @@ describe('ExecutionRecorder', () => {
 		});
 	});
 
-	describe('working memory tool chunks', () => {
-		it('records update_working_memory as a regular tool call when present', () => {
-			const recorder = new ExecutionRecorder();
-
-			recorder.record({ type: 'text-delta', id: 't1', delta: 'Hello' });
-			recorder.record({
-				type: 'tool-call',
-				toolCallId: 'wm-1',
-				toolName: 'update_working_memory',
-				input: { memory: '# Name: Alice' },
-			} as StreamChunk);
-			recorder.record({
-				type: 'tool-result',
-				toolCallId: 'wm-1',
-				toolName: 'update_working_memory',
-				output: { success: true },
-			} as StreamChunk);
-			recorder.record({ type: 'finish', finishReason: 'stop' } as StreamChunk);
-
-			const record = recorder.getMessageRecord();
-
-			expect(record.toolCalls).toEqual([
-				{
-					name: 'update_working_memory',
-					input: { memory: '# Name: Alice' },
-					output: { success: true },
-				},
-			]);
-			expect(record.timeline.some((e) => e.type === 'working-memory')).toBe(false);
-		});
-	});
-
 	describe('suspension', () => {
 		it('records suspension as a timeline event', () => {
 			const recorder = new ExecutionRecorder();
@@ -181,6 +149,31 @@ describe('ExecutionRecorder', () => {
 				input: { x: 1 },
 				output: { y: 2 },
 			});
+		});
+
+		it('pairs same-name flat tool calls by toolCallId when results arrive out of order', () => {
+			const recorder = new ExecutionRecorder();
+
+			recorder.record(makeToolCallChunk('search_knowledge', { file: 'first.md' }, 'call-1'));
+			recorder.record(makeToolCallChunk('search_knowledge', { file: 'second.md' }, 'call-2'));
+			recorder.record(makeToolResultChunk('search_knowledge', { fileName: 'second.md' }, 'call-2'));
+			recorder.record(makeToolResultChunk('search_knowledge', { fileName: 'first.md' }, 'call-1'));
+			recorder.record({ type: 'finish', finishReason: 'stop' } as StreamChunk);
+
+			const record = recorder.getMessageRecord();
+
+			expect(record.toolCalls).toEqual([
+				{
+					name: 'search_knowledge',
+					input: { file: 'first.md' },
+					output: { fileName: 'first.md' },
+				},
+				{
+					name: 'search_knowledge',
+					input: { file: 'second.md' },
+					output: { fileName: 'second.md' },
+				},
+			]);
 		});
 
 		it('still concatenates assistantResponse from all text deltas', () => {

@@ -7,6 +7,7 @@ import { useI18n } from '@n8n/i18n';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { injectWorkflowDocumentStore } from '@/app/stores/workflowDocument.store';
+import { useWorkflowExecutionStateStore } from '@/app/stores/workflowExecutionState.store';
 import type { CanvasRenderData } from '../canvas.utils';
 import type { Ref } from 'vue';
 import { ref, computed } from 'vue';
@@ -47,7 +48,6 @@ import {
 	STICKY_NODE_TYPE,
 	WAIT_NODE_TYPE,
 } from '@/app/constants';
-import { sanitizeHtml } from '@/app/utils/htmlUtils';
 import { MarkerType } from '@vue-flow/core';
 import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
 import { getTriggerNodeServiceName } from '@/app/utils/nodeTypesUtils';
@@ -72,6 +72,9 @@ export function useCanvasMapping({
 	const i18n = useI18n();
 	const workflowsStore = useWorkflowsStore();
 	const workflowDocumentStore = injectWorkflowDocumentStore();
+	const workflowExecutionStateStore = computed(() =>
+		useWorkflowExecutionStateStore(workflowDocumentStore.value.documentId),
+	);
 	const workflowState = injectWorkflowState();
 	const nodeTypesStore = useNodeTypesStore();
 	const nodeHelpers = useNodeHelpers();
@@ -198,7 +201,7 @@ export function useCanvasMapping({
 	);
 
 	const nodeTooltipById = computed(() => {
-		if (!workflowsStore.isWorkflowRunning) {
+		if (!workflowExecutionStateStore.value.isWorkflowRunning) {
 			return {};
 		}
 
@@ -256,7 +259,7 @@ export function useCanvasMapping({
 			acc[node.id] =
 				node.name === workflowState.executingNode.lastAddedExecutingNode &&
 				workflowState.executingNode.executingNode.length === 0 &&
-				workflowsStore.isWorkflowRunning;
+				workflowExecutionStateStore.value.isWorkflowRunning;
 
 			return acc;
 		}, {}),
@@ -374,26 +377,6 @@ export function useCanvasMapping({
 		{ throttle: CANVAS_EXECUTION_DATA_THROTTLE_DURATION, immediate: true },
 	);
 
-	const nodeExecutionErrorsById = computed(() =>
-		nodes.value.reduce<Record<string, string[]>>((acc, node) => {
-			const executionErrors: string[] = [];
-			const nodeExecutionRunData = workflowsStore.getWorkflowRunData?.[node.name];
-			if (nodeExecutionRunData) {
-				nodeExecutionRunData.forEach((executionRunData) => {
-					if (executionRunData?.error) {
-						const { message, description } = executionRunData.error;
-						const issue = `${message}${description ? ` (${description})` : ''}`;
-						executionErrors.push(sanitizeHtml(issue));
-					}
-				});
-			}
-
-			acc[node.id] = executionErrors;
-
-			return acc;
-		}, {}),
-	);
-
 	const nodeValidationErrorsById = computed(() =>
 		nodes.value.reduce<Record<string, string[]>>((acc, node) => {
 			const validationErrors: string[] = [];
@@ -410,7 +393,8 @@ export function useCanvasMapping({
 
 	const nodeHasIssuesById = computed(() =>
 		nodes.value.reduce<Record<string, boolean>>((acc, node) => {
-			const hasExecutionErrors = nodeExecutionErrorsById.value[node.id]?.length > 0;
+			const hasExecutionErrors =
+				(renderData.value.executionIssuesByNodeName.get(node.name)?.value?.length ?? 0) > 0;
 			const hasValidationErrors = nodeValidationErrorsById.value[node.id]?.length > 0;
 
 			if (['crashed', 'error'].includes(nodeExecutionStatusById.value[node.id])) {
@@ -604,13 +588,8 @@ export function useCanvasMapping({
 						[CanvasConnectionMode.Output]: outputConnections,
 					},
 					issues: {
-						execution: nodeExecutionErrorsById.value[node.id],
 						validation: nodeValidationErrorsById.value[node.id],
 						visible: nodeHasIssuesById.value[node.id],
-					},
-					pinnedData: {
-						count: nodePinnedDataById.value[node.id]?.length ?? 0,
-						visible: !!nodePinnedDataById.value[node.id],
 					},
 					execution: {
 						status: nodeExecutionStatusById.value[node.id],
