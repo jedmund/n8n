@@ -19,7 +19,7 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_PAT }}
 
       - name: Configure git identity
         run: |
@@ -65,7 +65,7 @@ jobs:
       - name: Open conflict-resolution PR
         if: steps.merge.outputs.result == 'conflict'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
           GH_EVENT: ${{ github.event_name }}
           GH_SERVER_URL: ${{ github.server_url }}
           GH_REPO: ${{ github.repository }}
@@ -88,5 +88,5 @@ jobs:
           gh pr create \
             --base master \
             --head "$BRANCH" \
-            --title "Sync upstream n8n-io/master (${DATE}) — conflicts" \
+            --title "Sync upstream n8n-io/master (${DATE}) - conflicts" \
             --body-file /tmp/pr-body.md
