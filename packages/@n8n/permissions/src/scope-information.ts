@@ -96,7 +96,7 @@ export const scopeInformation: Partial<Record<Scope, ScopeInformation>> = {
 	},
 	'credential:connect': {
 		displayName: 'Connect Credential',
-		description: 'Allows connecting an own account to a private credential.',
+		description: 'Allows connecting an own account to an end-user credential.',
 	},
 	'insights:read': {
 		displayName: 'Read Insights',
@@ -113,5 +113,9 @@ export const scopeInformation: Partial<Record<Scope, ScopeInformation>> = {
 	'workflow:execute-chat': {
 		displayName: 'Execute Workflow in Chat',
 		description: 'Allows executing workflows in chat.',
+	},
+	'role:manageProject': {
+		displayName: 'Manage project roles',
+		description: 'Allows creating, editing, and deleting project role definitions.',
 	},
 };
