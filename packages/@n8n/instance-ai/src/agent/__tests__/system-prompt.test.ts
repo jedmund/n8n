@@ -226,19 +226,54 @@ describe('getSystemPrompt', () => {
 			expect(prompt).not.toContain('build-workflow-with-agent');
 		});
 
-		it('forbids the agent_builder tool during workflow building when the agents module is enabled', async () => {
+		it('forbids the build-agent tool during workflow building when the agents module is enabled', async () => {
 			const prompt = await getSystemPromptWithEnabledModules('agents,instance-ai');
 
-			expect(prompt).toContain('do not call `agent_builder` at all');
+			expect(prompt).toContain('do not call `build-agent` at all');
+			expect(prompt).toContain('do not route around that by delegating to `build-agent`');
+		});
+
+		it('routes agent-preview transcript handoffs through get-session, deferring build-agent to explicit edits', async () => {
+			const prompt = await getSystemPromptWithEnabledModules('agents,instance-ai');
+
+			expect(prompt).toContain('<agent-preview-context>');
+			expect(prompt).toContain('call `get-session` to read the transcript first');
+			expect(prompt).toContain('do NOT call `build-agent` or otherwise modify the agent');
 			expect(prompt).toContain(
-				'do not route around that by creating a custom tool through `agent_builder`',
+				'Only call `build-agent` when the user explicitly asks to update, improve, or fix the agent',
+			);
+			expect(prompt).toContain('pass the given `agentId`');
+		});
+
+		it('routes agent listing, switching, and publish guidance when agents are enabled', async () => {
+			const prompt = await getSystemPromptWithEnabledModules('agents,instance-ai');
+
+			expect(prompt).toContain('Each distinct agent the user asks for is its own build target');
+			expect(prompt).toContain('calls without either continue the most recent target');
+			expect(prompt).toContain('call `agents(action="list")` directly');
+			expect(prompt).toContain('find its id via `agents(action="list")` and pass it as `agentId`');
+			expect(prompt).toContain('forward that intent to `build-agent`');
+			expect(prompt).toContain('never tell the user to open the agent editor and click Publish');
+			expect(prompt).toContain('`publish_agent` / `unpublish_agent`');
+		});
+
+		it('delegates direct agent tool additions instead of wrapping them in workflows', async () => {
+			const prompt = await getSystemPromptWithEnabledModules('agents,instance-ai');
+
+			expect(prompt).toContain(
+				'Pass requests to add tools or capabilities to an agent to `build-agent` near-verbatim',
+			);
+			expect(prompt).toContain('multiple independent tools do not become one workflow');
+			expect(prompt).toContain('one agent tool call must execute an ordered multi-node procedure');
+			expect(prompt).not.toContain(
+				'Actions the agent should invoke as reusable tools are built as workflows',
 			);
 		});
 
-		it('omits the agent_builder fence and intent gate when the agents module is disabled', async () => {
+		it('omits the build-agent fence and intent gate when the agents module is disabled', async () => {
 			const prompt = await getSystemPromptWithEnabledModules(undefined);
 
-			expect(prompt).not.toContain('agent_builder');
+			expect(prompt).not.toContain('build-agent');
 			expect(prompt).not.toContain('Intent gate');
 		});
 

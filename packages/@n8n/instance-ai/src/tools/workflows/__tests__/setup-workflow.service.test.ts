@@ -73,6 +73,9 @@ function createMockContext(overrides?: Partial<InstanceAiContext>): InstanceAiCo
 			updateRows: vi.fn(),
 			deleteRows: vi.fn(),
 		},
+		workflowTemplateService: {
+			getTemplate: vi.fn(),
+		},
 		logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
 		...overrides,
 	};
@@ -411,7 +414,7 @@ describe('buildSetupRequests', () => {
 		expect(result[0].isAutoApplied).toBe(true);
 		expect(result[0].node.credentials?.slackApi).toEqual({
 			id: null,
-			name: 'n8n Connect',
+			name: 'n8n credits',
 			__aiGatewayManaged: true,
 		});
 	});

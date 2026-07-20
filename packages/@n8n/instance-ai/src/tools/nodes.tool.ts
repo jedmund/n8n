@@ -34,7 +34,7 @@ const listAction = z.object({
 		.boolean()
 		.optional()
 		.describe(
-			'When true, return only nodes supported by n8n Connect (each carries an `aiGateway` field with minVersion/operations). Use to answer "which nodes support n8n Connect?".',
+			'When true, return only nodes supported by n8n credits (each carries an `aiGateway` field with minVersion/operations). Use to answer "which nodes support n8n credits?".',
 		),
 });
 
@@ -245,10 +245,9 @@ async function handleDescribe(
 
 /**
  * Resolve TypeScript type definitions for a validated list of node requests.
- * Shared by the consolidated `nodes` tool's `type-definition` action and the
- * agent-builder's `get_node_types` tool so both stay on one implementation.
+ * Used by the consolidated `nodes` tool's `type-definition` action.
  */
-export async function resolveNodeTypeDefinitions(
+async function resolveNodeTypeDefinitions(
 	context: InstanceAiContext,
 	nodeTypes: NodeTypeRequest[],
 ) {
