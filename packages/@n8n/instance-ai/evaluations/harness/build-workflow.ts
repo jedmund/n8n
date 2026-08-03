@@ -21,7 +21,6 @@ import {
 } from './chat-loop';
 import { runWorkflowChecks, summarizeMissingWorkflowError } from './cleanup';
 import {
-	loadConversationSeed,
 	remapSeedWorkflowIds,
 	seedFromProse,
 	transcriptPrefixFromSeed,
@@ -92,6 +91,16 @@ interface MultiTurnDriverConfig {
 	/** Appended to the FIRST sent message only (pre-seeded-table hint); the
 	 *  recorded turn and the proxy's conversation keep the clean prompt. */
 	openingMessageSuffix?: string;
+	/** Ids already allowlisted for this thread (from pre-run `createDeclaredCredentials`
+	 *  seeding) — wires `UserProxyLlm.credentialCreation` so `manual` can create a
+	 *  real credential when a setup card shows zero existing candidates. Omitted
+	 *  when the credential view isn't pinned (see `credentialViewPinned`), since
+	 *  the allowlist endpoint isn't available in that case either. */
+	allowlistedCredentialIds?: string[];
+	createdCredentialIds?: Set<string>;
+	/** Shared with `createDeclaredCredentials`'s pre-run seeding — see
+	 *  `CredentialCreationConfig.nameCounts`. */
+	credentialNameCounts?: Map<string, number>;
 }
 
 async function driveMultiTurnConversation(
@@ -103,6 +112,17 @@ async function driveMultiTurnConversation(
 		conversation: config.conversation,
 		messageBudget: config.messageBudget,
 		logger: config.logger,
+		...(config.allowlistedCredentialIds !== undefined
+			? {
+					credentialCreation: {
+						client: config.client,
+						threadId: config.threadId,
+						allowlistedCredentialIds: config.allowlistedCredentialIds,
+						createdCredentialIds: config.createdCredentialIds,
+						nameCounts: config.credentialNameCounts,
+					},
+				}
+			: {}),
 	});
 
 	const confirmationStrategy: ConfirmationStrategy = proxy.respondToConfirmation.bind(proxy);
@@ -192,8 +212,8 @@ export interface BuildWorkflowConfig {
 	credentials?: TestCaseCredential[];
 	/** Run-level registry the created credential IDs are added to for cleanup. */
 	createdCredentialIds?: Set<string>;
-	/** Synthetic seed file (path) restored before the live message. */
-	seedFile?: string;
+	/** Prior messages + workflows restored before the live message. */
+	conversationSeed?: ConversationSeed;
 	/** Prose turns seeded as plain-text history. */
 	priorConversation?: ConversationTurn[];
 	/** Reproduce a real conversation from its LangSmith trace (seed = before the
@@ -299,8 +319,8 @@ export async function buildWorkflow(config: BuildWorkflowConfig): Promise<BuildR
 				logger.info(
 					`  Reconstructed seed from thread ${config.seedThread.threadId}: ${String(reconstructed.runCount)} runs → ${String(seed.messages.length)} message(s), ${String(seed.workflows.length)} workflow(s)${contSuffix} [${wsLabel}]${config.laneTag ?? ''}`,
 				);
-			} else if (config.seedFile) {
-				seed = loadConversationSeed(config.seedFile);
+			} else if (config.conversationSeed) {
+				seed = config.conversationSeed;
 			} else if (config.priorConversation && config.priorConversation.length > 0) {
 				seed = seedFromProse(config.priorConversation);
 			}
@@ -324,9 +344,14 @@ export async function buildWorkflow(config: BuildWorkflowConfig): Promise<BuildR
 		// default) before the first message, so every build-workflow call inside
 		// the build sees the same deterministic environment.
 		const declaredCredentials = config.credentials ?? [];
+		// Shared with UserProxyLlm's mid-run credential creation (if any) so a
+		// credential created during the run doesn't collide on display name with
+		// one declared here — both would otherwise default to e.g. "[eval] Slack".
+		const credentialNameCounts = new Map<string, number>();
 		const createdCredentials = await createDeclaredCredentials(client, declaredCredentials, {
 			onCreated: (id) => config.createdCredentialIds?.add(id),
 			logger,
+			nameCounts: credentialNameCounts,
 		});
 		try {
 			await client.setThreadCredentialAllowlist(
@@ -432,6 +457,16 @@ export async function buildWorkflow(config: BuildWorkflowConfig): Promise<BuildR
 				logger,
 				proxyResponses,
 				followUpMessagesOut: followUpMessages,
+				// Only wired when the credential view is actually pinned — the
+				// allowlist endpoint a mid-run creation depends on isn't available
+				// otherwise either (see the catch above).
+				...(credentialViewPinned
+					? {
+							allowlistedCredentialIds: createdCredentials.map((c) => c.id),
+							createdCredentialIds: config.createdCredentialIds,
+							credentialNameCounts,
+						}
+					: {}),
 				// The pre-seeded-table note goes to the agent, but the recorded turn
 				// (and the graded transcript) keeps the clean user prompt.
 				openingMessageSuffix: scenarioSeedTablesNote,
