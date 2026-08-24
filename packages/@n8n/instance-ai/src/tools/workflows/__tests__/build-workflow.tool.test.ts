@@ -60,6 +60,7 @@ vi.mock('../resolve-credentials', () => ({
 				mockedNodeNames: [],
 				mockedCredentialTypes: [],
 				mockedCredentialsByNode: {},
+				heldForNewCredentialTypes: [],
 				resolvedCredentialsByNode: {},
 			}),
 	),
@@ -217,6 +218,14 @@ describe('createBuildWorkflowTool', () => {
 		expect(tool.description).toContain('workflow-builder');
 		expect(tool.description).toContain('data-table-manager');
 		expect(tool.description).toContain('load_skill');
+		expect(tool.description).toContain(
+			'Use TypeScript SDK .workflow.ts source for new and existing workflows.',
+		);
+		expect(tool.description).not.toContain('WorkflowJSON .json source for existing workflow edits');
+		expect(buildWorkflowInputSchema.shape.filePath.description).toContain(
+			'Workspace-relative path to the TypeScript SDK workflow source file',
+		);
+		expect(buildWorkflowInputSchema.shape.filePath.description).not.toContain('WorkflowJSON');
 	});
 
 	it('builds a new workflow from a workspace source file', async () => {
@@ -257,6 +266,12 @@ describe('createBuildWorkflowTool', () => {
 		expect(result.postBuildFlow?.instructions).toContain('## After build-workflow succeeds');
 		expect(result.postBuildFlow?.guidance).toContain(
 			'then mocked/no-mock live-test when latest verification used mocks or simulations',
+		);
+		expect(result.postBuildFlow?.guidance).toContain(
+			'never offer publishing as an alternative to the live test',
+		);
+		expect(result.postBuildFlow?.guidance).toContain(
+			'A user-run execution counts only after `executions(action="list")`',
 		);
 		expect(result.postBuildFlow?.guidance).toContain(
 			'Do not replace the error-workflow opt-in with a generic add-anything',
@@ -1833,6 +1848,7 @@ describe('createBuildWorkflowTool', () => {
 			mockedNodeNames: ['OpenAI Chat Model'],
 			mockedCredentialTypes: [],
 			mockedCredentialsByNode: {},
+			heldForNewCredentialTypes: [],
 			resolvedCredentialsByNode: {
 				'OpenAI Chat Model': [
 					{ type: 'openAiApi', id: null, name: 'n8n Connect', __aiGatewayManaged: true },
