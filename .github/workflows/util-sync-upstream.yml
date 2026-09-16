@@ -62,6 +62,55 @@ jobs:
         if: steps.merge.outputs.result == 'clean'
         run: git push origin master
 
+      - name: Rebase sso-pocketid onto updated master
+        if: steps.merge.outputs.result == 'clean'
+        id: rebase
+        run: |
+          git checkout jedmund/sso-pocketid
+          set +e
+          git rebase master
+          REBASE_STATUS=$?
+          set -e
+          if [ "$REBASE_STATUS" -eq 0 ]; then
+            echo "result=clean" >> "$GITHUB_OUTPUT"
+          else
+            git rebase --abort || true
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push rebased sso-pocketid
+        if: steps.rebase.outputs.result == 'clean'
+        run: git push --force-with-lease origin jedmund/sso-pocketid
+
+      - name: Open sso-pocketid conflict PR
+        if: steps.rebase.outputs.result == 'conflict'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+          GH_EVENT: ${{ github.event_name }}
+          GH_SERVER_URL: ${{ github.server_url }}
+          GH_REPO: ${{ github.repository }}
+          GH_RUN_ID: ${{ github.run_id }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          BRANCH="sync/sso-pocketid-${DATE}"
+          git checkout -b "$BRANCH" jedmund/sso-pocketid
+          git merge --no-commit --no-ff master || true
+          git add -A
+          git commit -m "chore: rebase sso-pocketid onto master (conflicts to resolve)" \
+            -m "The automated sync could not rebase sso-pocketid cleanly against master. Resolve markers in the diff, then merge."
+          git push -u origin "$BRANCH"
+          {
+            echo "Automated sso-pocketid rebase hit conflicts against master. Resolve the conflict markers in the diff, push to this branch, then merge."
+            echo ""
+            echo "Triggered by: ${GH_EVENT}"
+            echo "Run: ${GH_SERVER_URL}/${GH_REPO}/actions/runs/${GH_RUN_ID}"
+          } > /tmp/pr-body.md
+          gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "Rebase sso-pocketid onto master (${DATE}) - conflicts" \
+            --body-file /tmp/pr-body.md
+
       - name: Open conflict-resolution PR
         if: steps.merge.outputs.result == 'conflict'
         env:
