@@ -25,6 +25,7 @@ import {
 } from './instance-ai-event-lifecycle';
 import type { InstanceAiEventLifecycle } from './instance-ai-event-lifecycle';
 import { getRenderHint, isKnownInstanceAiErrorCode, isSafeObjectKey } from './instance-ai.schema';
+import { resolveBuilderToolName } from '../builder-tool-names';
 import type {
 	InstanceAiEvent,
 	InstanceAiAgentNode,
@@ -217,7 +218,6 @@ function nodeHasContent(node: InstanceAiAgentNode | undefined): boolean {
 		(node.timeline?.length ?? 0) > 0 ||
 		(node.toolCalls?.length ?? 0) > 0 ||
 		(node.children?.length ?? 0) > 0 ||
-		(node.planItems?.length ?? 0) > 0 ||
 		!!node.statusMessage ||
 		!!node.result ||
 		!!node.error ||
@@ -305,7 +305,7 @@ export function reduceEvent(state: AgentRunState, event: InstanceAiEvent): Agent
 				const tc: InstanceAiToolCallState = {
 					runId: event.runId,
 					toolCallId: event.payload.toolCallId,
-					toolName: event.payload.toolName,
+					toolName: resolveBuilderToolName(event.payload.toolName),
 					args: {},
 					isLoading: true,
 					renderHint: getRenderHint(event.payload.toolName),
@@ -401,7 +401,7 @@ export function reduceEvent(state: AgentRunState, event: InstanceAiEvent): Agent
 				const tc: InstanceAiToolCallState = {
 					runId: event.runId,
 					toolCallId: event.payload.toolCallId,
-					toolName: event.payload.toolName,
+					toolName: resolveBuilderToolName(event.payload.toolName),
 					args: event.payload.args,
 					isLoading: true,
 					renderHint: getRenderHint(event.payload.toolName),
@@ -562,9 +562,6 @@ export function reduceEvent(state: AgentRunState, event: InstanceAiEvent): Agent
 			const agent = ensureAgent(state, event.agentId);
 			if (agent) {
 				agent.tasks = event.payload.tasks;
-				if (event.payload.planItems) {
-					agent.planItems = event.payload.planItems;
-				}
 			}
 			break;
 		}
@@ -680,7 +677,6 @@ export function reduceEvent(state: AgentRunState, event: InstanceAiEvent): Agent
 
 		// `preferences-applied` names the saved preferences the turn carried. The chat and
 		// the plus menu read it from the durable log, so the run tree holds no copy.
-		case 'filesystem-request':
 		case 'thread-title-updated':
 		case 'preferences-applied': {
 			// Handled externally — no state change

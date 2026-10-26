@@ -68,6 +68,8 @@ export type {
 	EpisodicMemoryReflectionResult,
 	EpisodicMemoryReflectorInput,
 	EpisodicMemoryScope,
+	EpisodicScopeDecision,
+	ResolvedEpisodicScope,
 	EpisodicMemorySearchOptions,
 	EpisodicMemoryStatus,
 	EpisodicMemoryTaskLockHandle,
@@ -95,6 +97,7 @@ export type {
 	AnthropicPromptCachingConfig,
 	OpenAIPromptCachingConfig,
 	PromptCachingConfig,
+	NativeToolDeferralConfig,
 	BuiltTelemetry,
 	AttributeValue,
 	ObservationCursor,
@@ -103,6 +106,9 @@ export type {
 	BuiltObservationLogTaskLockStore,
 	MemoryTaskUsageReport,
 	NewObservationLogEntry,
+	ObservationLogBatch,
+	ObservationLogBatchEntry,
+	ObservationLogBatchCommitResult,
 	ObservationLogEntry,
 	ObservationLogMarker,
 	ObservationLogMerge,
@@ -216,6 +222,7 @@ export {
 	createSkillLoadTool,
 	extendRuntimeSkillSource,
 	filterRuntimeSkillSource,
+	hashRuntimeSkillRegistry,
 	formatSkillValidationErrors,
 	InvalidRuntimeSkillError,
 	loadRuntimeSkillsFromDirectory,
@@ -245,6 +252,7 @@ export type {
 	RuntimeSkillLinkedFileGroup,
 	RuntimeSkillLinkedFiles,
 	RuntimeSkillLoader,
+	RuntimeSkillLoadError,
 	RuntimeSkillMcpServerDependency,
 	RuntimeSkillPolicyContract,
 	RuntimeSkillReferenceContract,
@@ -321,7 +329,7 @@ export type {
 	VectorFilter,
 } from './types';
 
-export { createModel } from './runtime/model/model-factory';
+export { createModel, mintAzureFoundryDeploymentsToken } from './runtime/model/model-factory';
 export type { FetchFn, EmbeddingProviderOptions } from './runtime/model/model-factory';
 export {
 	hasAzureApiKey,
@@ -387,6 +395,9 @@ export {
 export {
 	RECALL_MEMORY_TOOL_NAME,
 	createRecallMemoryTool,
+	EPISODIC_SCOPE_METADATA_KEY,
+	encodeEpisodicScopeMetadata,
+	readEpisodicScopeDecision,
 	getEpisodicMemoryScope,
 	hashEpisodicMemoryContent,
 	hashEpisodicMemoryEvidence,
@@ -421,6 +432,8 @@ export type {
 	MemoryLifecycleState,
 	MemoryLifecycleStatus,
 } from './runtime/memory/memory-lifecycle';
+export { loadReplayedMessages } from './runtime/memory/memory-orchestrator';
+export { prepareObservationLogBatchCursor } from './runtime/memory/observation-log-batch';
 export {
 	parseObservationLogMarkdown,
 	renderObserverTranscript,
