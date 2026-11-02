@@ -3,6 +3,7 @@ export { GetNodeTypesByIdentifierRequestDto } from './node-types/get-node-types-
 export { CreateAppDto } from './app/create-app.dto';
 export { UpdateAppDto } from './app/update-app.dto';
 export { ListAppsQueryDto } from './app/list-apps-query.dto';
+export { PublishAppDto } from './app/publish-app.dto';
 
 export { AiAskRequestDto } from './ai/ai-ask-request.dto';
 export { AiChatRequestDto } from './ai/ai-chat-request.dto';
@@ -42,7 +43,7 @@ export {
 } from './instance-ai/instance-ai-confirm-request.dto';
 export { InstanceAiFeedbackRequestDto } from './instance-ai/instance-ai-feedback-request.dto';
 export { InstanceAiRenameThreadRequestDto } from './instance-ai/instance-ai-rename-thread-request.dto';
-export { InstanceAiThreadTabsRequestDto } from './instance-ai/instance-ai-thread-tabs-request.dto';
+export { AssistantThreadTabsRequestDto } from './assistant/assistant-thread-tabs-request.dto';
 export {
 	InstanceAiPreferenceCardUndoRequestDto,
 	InstanceAiPreferenceCardEditRequestDto,
@@ -103,6 +104,7 @@ export { UpdateProjectDto, UpdateProjectWithRelationsDto } from './project/updat
 export { DeleteProjectDto } from './project/delete-project.dto';
 export { AddUsersToProjectDto } from './project/add-users-to-project.dto';
 export { ChangeUserRoleInProject } from './project/change-user-role-in-project.dto';
+export { TransferPreviewQueryDto } from './project/transfer-preview-query.dto';
 export { ListProjectsQueryDto } from './project/list-projects-query.dto';
 export {
 	projectPublicSchema,
@@ -442,7 +444,9 @@ export {
 export {
 	UsersListFilterDto,
 	type UsersListSortOptions,
+	type UsersListStatus,
 	USERS_LIST_SORT_OPTIONS,
+	USERS_LIST_STATUSES,
 } from './user/users-list-filter.dto';
 
 export { UpdateRoleDto } from './roles/update-role.dto';
@@ -557,6 +561,7 @@ export {
 	ImportResultDto,
 	ImportBlockedErrorDto,
 	importResultSchema,
+	type ImportedAgentChannel,
 } from './packages/import-result.dto';
 export * from './packages/credential.schema';
 export * from './packages/data-table.schema';
@@ -716,6 +721,11 @@ export {
 	type PublicApiRateLimitSettings,
 	type PublicApiRateLimitSettingsResponse,
 } from './public-api-rate-limit-settings/update-public-api-rate-limit-settings.dto';
+export {
+	RateLimitSettingsPublicDto,
+	RateLimitSettingsQueryPublicDto,
+	UpdateRateLimitSettingsPublicDto,
+} from './public-api-rate-limit-settings/rate-limit-settings-public.dto';
 
 export {
 	PromotionChangesDto,
@@ -794,7 +804,7 @@ export {
 	PromotionCheckoutPublicDto,
 	promotionCheckoutPublicSchema,
 } from './promotions/promotion-checkout.dto';
-export * from './promotions/promotion-binding-preflight.dto';
+export * from './promotions/promotion-apply-check.dto';
 export * from './promotions/promotion-preview.dto';
 export {
 	CreatePromotionEnvironmentDto,
@@ -822,7 +832,6 @@ export {
 	type PromotionEnvironmentSummary,
 } from './promotions/promotion-environment.dto';
 export {
-	ApplyCheckQueryDto,
 	ApplyPackageDto,
 	ApplyPackageResultDto,
 	ApplySelectionDto,
@@ -837,7 +846,6 @@ export {
 	promotionGitResultSchema,
 	promotionPromoteWarningSchema,
 	type PromotionPromoteWarning,
-	type ApplyCheckResult,
 } from './promotions/promotion-operations.dto';
 export {
 	parsePromotionRunDetails,
@@ -867,6 +875,7 @@ export {
 	promotionReviewTabSchema,
 	promotionReviewTypeSchema,
 	type PromotionReviewChanges,
+	type PromotionReviewOutcome,
 	type PromotionReviewWarning,
 	type PromotionReviewResult,
 	type PromotionReviewRemote,
@@ -879,8 +888,10 @@ export {
 
 export {
 	ScimConfigPatchDto,
+	ScimDeprovisioningPolicyDto,
 	ScimPatchRequestDto,
 	ScimQueryDto,
+	ScimTransferTargetsQueryDto,
 	ScimUserCreateDto,
 } from './scim';
 export { CreateTrustedSourceDto } from './trusted-source/create-trusted-source.dto';

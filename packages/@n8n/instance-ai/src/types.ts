@@ -20,6 +20,9 @@ import type {
 	AgentJsonConfig,
 	AgentSessionStatus,
 	AgentSkill,
+	AppBuildResponse,
+	AppListResponse,
+	AppResponse,
 	SaveSkillDto,
 	SkillDetail,
 	SkillListResponse,
@@ -60,7 +63,6 @@ import type { AgentContextInput } from './tools/agent-context.tool';
 import type { McpClientManager } from './mcp/mcp-client-manager';
 import type { OrchestratorRunHandoffReason } from './runtime/orchestrator-run-control';
 import type { TraceStatus } from './runtime/resumable-stream-executor';
-import type { IterationLog } from './storage/iteration-log';
 import type { PatchableThreadMemory } from './storage/thread-patch';
 import type { BuilderUsageItem } from './stream/usage-accumulator';
 import type {
@@ -803,6 +805,7 @@ export interface CredentialHostInfo {
 }
 
 export interface InstanceAiCredentialService {
+	updateDescription(credentialId: string, description: string | null): Promise<void>;
 	/**
 	 * List credentials.
 	 *
@@ -905,7 +908,7 @@ export interface InstanceAiActivityEntry {
 
 /**
  * An entry in full, plus the rest of what the log knows about the same resource. Deliberately not
- * the live record: `workflow_builder_workflows` and `workflow_builder_credentials` already fetch those, and the entry carries the ids
+ * the live record: `get_workflow` and `list_credentials` already fetch those, and the entry carries the ids
  * to call them with.
  */
 export interface InstanceAiActivityExpansion {
@@ -963,6 +966,56 @@ export interface ExploreResourcesResult {
 	builderHint?: string;
 }
 
+export interface ResolveParameterOptionsParams {
+	nodeType: string;
+	version: number;
+	parameterPath: string;
+	nodeParameters?: Record<string, unknown>;
+	credentials?: Record<string, { id: string; name: string }>;
+	credentialType?: string;
+	credentialId?: string;
+	filter?: string;
+	paginationToken?: string;
+}
+
+export type ResolveParameterOptionsResult =
+	| {
+			ok: true;
+			kind: 'resourceLocator' | 'loadOptionsMethod' | 'loadOptionsRouting';
+			parameterPath: string;
+			methodName?: string;
+			mode?: string;
+			results: Array<{
+				name: string;
+				value: string | number | boolean;
+				url?: string;
+				description?: string;
+				parameterValue: unknown;
+			}>;
+			paginationToken?: string;
+			builderHint?: string;
+	  }
+	| {
+			ok: false;
+			code:
+				| 'node_type_not_found'
+				| 'parameter_not_found'
+				| 'not_dynamic_selector'
+				| 'missing_credentials'
+				| 'lookup_failed';
+			message: string;
+			dynamicParameters?: Array<{
+				path: string;
+				type: string;
+				method: string;
+			}>;
+			credentialSlots?: Array<{
+				credentialType: string;
+				credentialSlot: string;
+				displayName?: string;
+			}>;
+	  };
+
 /**
  * A resource-locator value the connected credential can't reach. Identifies the
  * parameter and the offending value only — list the values it *can* reach with
@@ -1003,6 +1056,10 @@ export interface InstanceAiNodeService {
 		deprecated?: boolean;
 		/** Set when the node cannot run on this instance, because the feature it needs is off. */
 		unavailable?: string;
+		aiGateway?: AiGatewayNodeMeta;
+		webhooks?: unknown[];
+		polling?: boolean;
+		triggerPanel?: unknown;
 	} | null>;
 	/** List available resource/operation discriminators for a node. Null for flat nodes. */
 	listDiscriminators?(
@@ -1010,6 +1067,9 @@ export interface InstanceAiNodeService {
 	): Promise<{ resources: Array<{ name: string; operations: string[] }> } | null>;
 	/** Query real resources via a node's listSearch or loadOptions methods (e.g. list spreadsheets, models). */
 	exploreResources?(params: ExploreResourcesParams): Promise<ExploreResourcesResult>;
+	resolveParameterOptions?(
+		params: ResolveParameterOptionsParams,
+	): Promise<ResolveParameterOptionsResult>;
 	/**
 	 * Report resource-locator parameters whose current value the given credential can't
 	 * reach. A credential can narrow a parameter's value space after the value was chosen —
@@ -1163,6 +1223,7 @@ export interface InstanceAiPreferenceService {
 }
 
 export interface InstanceAiSkillService {
+	assistantSkillsEnabled: boolean;
 	list(options: {
 		query?: string;
 		scope?: SkillScope;
@@ -1176,6 +1237,7 @@ export interface InstanceAiSkillService {
 		scope: 'project' | 'instance';
 		projectId?: string;
 		skill: Omit<AgentSkill, 'allowedTools'>;
+		availableToAssistant?: boolean;
 	}): Promise<SkillDetail>;
 	update(skillId: string, input: SaveSkillDto): Promise<SkillSaveResponse>;
 	delete(skillId: string): Promise<void>;
@@ -1231,6 +1293,21 @@ export interface InstanceAiDataTableService {
 		filter: DataTableFilterInput,
 		options?: DataTableIdOptions,
 	): Promise<{ deletedCount: number; dataTableId: string; tableName: string; projectId: string }>;
+}
+
+export interface InstanceAiAppService {
+	createApp(input: { name: string; namespace: string; id?: string }): Promise<AppResponse>;
+	listApps(query: { name?: string }): Promise<AppListResponse>;
+	getApp(appId: string): Promise<AppResponse>;
+	findApp(appId: string): Promise<AppResponse | undefined>;
+	/** The draft source as a gzip tar archive, with the version it is based on. */
+	exportDraft(appId: string): Promise<{ baseVersionId: string | null; archive: Buffer }>;
+	commit(
+		appId: string,
+		baseVersionId: string | null,
+		archive: Buffer,
+		label: string | null,
+	): Promise<AppBuildResponse>;
 }
 
 // ── Evaluation configs (config-based evals) ──────────────────────────────────
@@ -1472,7 +1549,7 @@ export interface InstanceAiBuilderDelegate {
 	): BuiltTool[];
 	/** Runtime skills that the builder tools rely on, such as `agent-builder-config`. */
 	getRuntimeSkills(): RuntimeSkill[];
-	/** Preview link and model recommendations for the target agent. */
+	/** Preview link for the target agent. */
 	getBuilderSessionContext(agentId: string): Promise<string>;
 	/** Current display name of the agent, or undefined when not found. */
 	resolveAgentName(agentId: string): Promise<string | undefined>;
@@ -1489,6 +1566,27 @@ export interface InstanceAiBuilderDelegate {
 	 *  trace metric. Resolves to `undefined` when the agent does not exist. Optional
 	 *  for the same reason as `readAgentArtifact`. */
 	validateAgent?(agentId: string): Promise<AgentValidationSummary | undefined>;
+	/** Credentials the agent can use without asking the user. Optional for the
+	 *  same reason as `readAgentArtifact`: without it, every request shows the card. */
+	getCredentialDefaults?(agentId: string): Promise<AgentCredentialDefaults>;
+	/** Records a credential card for the agent build telemetry. */
+	trackCredentialRequest?(
+		agentId: string,
+		session: Partial<BuilderToolsSession>,
+		request: AgentCredentialRequestEvent,
+	): void;
+}
+
+export interface AgentCredentialDefaults {
+	/** Credentials of the agent's configured chat channels. Tools reuse them. */
+	channelCredentialIds: string[];
+	/** True when n8n can supply a managed credential, for example for Episodic Memory embeddings. */
+	managedCredentialAvailable: boolean;
+}
+
+export interface AgentCredentialRequestEvent {
+	credentialType: string;
+	outcome: 'requested' | 'provided' | 'skipped';
 }
 
 export interface AgentValidationSummary {
@@ -1592,7 +1690,7 @@ export interface InstanceAiContext {
 	projectId?: string;
 	/**
 	 * Per-run folder-exploration gate, resolved by the host before the context
-	 * is built. When true, the `workflow_builder_workflows` list action advertises folder fields
+	 * is built. When true, `list_workflows` advertises folder fields
 	 * and rows carry `folder`. Absent or false keeps the pre-feature shape.
 	 */
 	folderExplorationEnabled?: boolean;
@@ -1617,7 +1715,7 @@ export interface InstanceAiContext {
 	/** Optional — present when the host allows MCP registry discovery for this
 	 *  user. Presence gates the `mcp-servers` tool. */
 	mcpService?: InstanceAiMcpService;
-	/** Optional — presence gates the `execute` action on the `workflow_builder_nodes` tool. */
+	/** Optional — presence gates the `execute_node` tool. */
 	executeNodeService?: InstanceAiExecuteNodeService;
 	/** Optional — wired by the host when the run has a bound project. Presence
 	 *  gates the `conversation-history` tool (orchestrator only). */
@@ -1630,6 +1728,7 @@ export interface InstanceAiContext {
 	 *  absence hides the `save_user_preference` tool. */
 	aiPreferenceService?: InstanceAiPreferenceService;
 	skillService?: InstanceAiSkillService;
+	appService?: InstanceAiAppService;
 	/** Per-run inventory behind `mcp-servers`' `connected` action. Captured when the
 	 *  agent is built, which is also when its MCP tools are attached, so it always
 	 *  matches what this agent can actually call. */
@@ -1688,7 +1787,7 @@ export interface InstanceAiContext {
 	runId?: string;
 	/**
 	 * Run-scoped outcome tracking for browser-assisted credential setup. The
-	 * workflow_builder_credentials tool marks an attempt pending when it hands off to the LLM
+	 * credentials tool marks an attempt pending when it hands off to the LLM
 	 * with `needsBrowserSetup`; the browser tool wrapper reports each
 	 * `browser_create_credential` outcome. The host resolves the terminal
 	 * success/failure telemetry when the run finishes.
@@ -1862,6 +1961,16 @@ export interface InstanceAiMemoryConfig {
 		model?: ModelConfig;
 		/** Called with token usage after each observer/reflector LLM call, so the host can meter it. */
 		onTaskUsage?: (report: MemoryTaskUsageReport) => void | Promise<void>;
+	};
+	/**
+	 * Generate a title for a thread that has none, after the first turn. The
+	 * runtime reports the usage of the title call through `onSideCallUsage`.
+	 */
+	titleGeneration?: {
+		/** Model for the title call. Defaults to the agent's model. */
+		model?: ModelConfig;
+		/** Saves the title before the run ends, instead of after it in the background. */
+		sync?: boolean;
 	};
 }
 
@@ -2131,8 +2240,6 @@ export interface OrchestrationContext {
 	currentUserMessage?: string;
 	/** The domain context — gives sub-agent tools access to n8n services */
 	domainContext?: InstanceAiContext;
-	/** Thread-scoped iteration log for accumulating attempt history across retries */
-	iterationLog?: IterationLog;
 	/** Send a correction message to a running background task */
 	sendCorrectionToTask?: (
 		taskId: string,
@@ -2173,4 +2280,6 @@ export interface CreateInstanceAgentOptions {
 	onMemoryTaskEvent?: (event: ScopedMemoryTaskEvent) => void;
 	/** Transport for the agent's model calls. Sub-agents and memory tasks inherit it. */
 	modelFetch?: FetchFn;
+	/** Send the `x-n8n-function-id` header on model calls (`N8N_INSTANCE_AI_MODEL_REQUEST_LABELS`). */
+	requestLabels?: boolean;
 }

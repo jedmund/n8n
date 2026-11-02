@@ -54,7 +54,6 @@ import {
 	InstanceAiAdapterService,
 	type InstanceAiFeatureFlags,
 } from '../instance-ai.adapter.service';
-import { DbIterationLogStorage } from '../storage/db-iteration-log-storage';
 import type { AssistantTurnMemory, AssistantTurnRuntime } from './assistant-turn-runtime';
 import {
 	assistantCreditsExhaustedError,
@@ -85,7 +84,6 @@ export interface AssistantTurnEnvironment {
 	context: InstanceAiContext;
 	memory: AssistantTurnMemory;
 	taskStorage: ThreadTaskStorage;
-	iterationLog: DbIterationLogStorage;
 	workflowTasks: WorkflowTaskService;
 	modelId: ModelConfig;
 	memoryModelId: ModelConfig | undefined;
@@ -146,7 +144,6 @@ export class AssistantTurnEnvironmentFactory {
 		private readonly settingsService: InstanceAiSettingsService,
 		private readonly browserSessionService: InstanceAiBrowserSessionService,
 		private readonly aiService: AiService,
-		private readonly dbIterationLogStorage: DbIterationLogStorage,
 		private readonly instanceWriteAccess: InstanceWriteAccessService,
 		private readonly telemetry: Telemetry,
 		private readonly evalCredentialAllowlists: EvalThreadCredentialAllowlistService,
@@ -241,11 +238,11 @@ export class AssistantTurnEnvironmentFactory {
 		} = params;
 		const { memory } = runtime;
 		const thread = await memory.getThread(threadId);
-		if (thread && thread.resourceId !== user.id) {
+		if (thread && thread.resourceId !== runtime.resourceId) {
 			throw new ForbiddenError('Not authorized for this thread');
 		}
 
-		const boundProjectId = await memory.getThreadProjectId(threadId);
+		const boundProjectId = await runtime.getProjectId();
 		if (!boundProjectId) {
 			throw new UnexpectedError(
 				`Instance AI thread "${threadId}" has no bound project; it must be created via POST /instance-ai/threads before a run can start`,
@@ -285,6 +282,7 @@ export class AssistantTurnEnvironmentFactory {
 			folderExplorationEnabled,
 			credentialDescriptionsEnabled,
 			aiPreferencesEnabled,
+			assistantSkillsEnabled,
 		} = gates;
 		runtime.turnState.setSetupPanelEnabled(setupPanelEnabled);
 		// Resumed segments use the gates bound to the original turn.
@@ -335,9 +333,11 @@ export class AssistantTurnEnvironmentFactory {
 			onboardingThread,
 			credentialDescriptionsEnabled,
 			aiPreferencesEnabled,
+			assistantSkillsEnabled,
 			modelId,
 			modelFetch: this.modelService.getModelFetch(),
 			allowSendingParameterValues,
+			temporaryWorkflowMarkers: runtime.temporaryWorkflowMarkers,
 		});
 
 		const browserMcpServer = browserUseEnabledGlobally
@@ -430,7 +430,6 @@ export class AssistantTurnEnvironmentFactory {
 		});
 
 		const taskStorage = new ThreadTaskStorage(memory);
-		const iterationLog = this.dbIterationLogStorage;
 		const workflowLoopStorage = new WorkflowLoopStorage(memory);
 		const workflowTaskCoordinator = new WorkflowTaskCoordinator(threadId, workflowLoopStorage);
 		const workflowTasks = runtime.syncWorkflowTasks
@@ -442,22 +441,10 @@ export class AssistantTurnEnvironmentFactory {
 			setSchemaBaseDirs(nodeDefDirs);
 		}
 
-		const skillScope: InstanceAiSkillScope = {
-			profile: selectedPrompt.profile,
-			flags: { configEvalsEnabled, instanceContextEnabled },
-			// The agent-building skills need the build-agent tool, which needs a builder delegate.
-			agentBuildingEnabled: context.builderDelegate !== undefined,
-		};
-		const skills = await this.skillsService.loadSkills(skillScope, {
-			user,
-			projectId: boundProjectId,
-		});
-		const promptMetadata = describePromptProfile(selectedPrompt, skills.source);
-		runtime.turnState.setPromptConfiguration(promptMetadata);
+		const sandboxStatus = this.settingsService.getSandboxStatus();
 		let runtimeWorkspace: Workspace | undefined;
 		let workspaceRoot: string | undefined;
 
-		const sandboxStatus = this.settingsService.getSandboxStatus();
 		if (sandboxStatus.workflowBuilderAvailable) {
 			const sandboxConfig = await this.instanceAiErrorReporter.withBoundary(
 				'instance-ai-sandbox-setup',
@@ -489,6 +476,21 @@ export class AssistantTurnEnvironmentFactory {
 				});
 			}
 		}
+
+		if (!runtimeWorkspace) context.appService = undefined;
+		const skillScope: InstanceAiSkillScope = {
+			profile: selectedPrompt.profile,
+			flags: { configEvalsEnabled, instanceContextEnabled },
+			// The agent-building skills need the build-agent tool, which needs a builder delegate.
+			agentBuildingEnabled: context.builderDelegate !== undefined,
+			appBuildingEnabled: context.appService !== undefined,
+		};
+		const skills = await this.skillsService.loadSkills(skillScope, {
+			user,
+			projectId: boundProjectId,
+		});
+		const promptMetadata = describePromptProfile(selectedPrompt, skills.source);
+		runtime.turnState.setPromptConfiguration(promptMetadata);
 
 		context.workspace = runtimeWorkspace;
 		context.workspaceRoot = workspaceRoot;
@@ -558,7 +560,6 @@ export class AssistantTurnEnvironmentFactory {
 			cancelBackgroundTask: runtime.cancelBackgroundTask,
 			touchRun: runtime.touchRun,
 			touchBackgroundTask: runtime.touchBackgroundTask,
-			iterationLog,
 			sendCorrectionToTask: runtime.sendCorrectionToTask,
 			workflowTaskService: workflowTasks,
 			workspace: runtimeWorkspace,
@@ -571,7 +572,6 @@ export class AssistantTurnEnvironmentFactory {
 			context,
 			memory,
 			taskStorage,
-			iterationLog,
 			workflowTasks,
 			modelId,
 			memoryModelId,
