@@ -67,6 +67,12 @@ export const wrappedComponentBans = [
 	},
 	{
 		library: 'reka-ui',
+		prefixes: ['Listbox'],
+		allowedFolders: ['components/N8nListbox'],
+		replacement: ['N8nListbox', 'N8nListboxItem'],
+	},
+	{
+		library: 'reka-ui',
 		prefixes: ['NumberField'],
 		allowedFolders: ['components/N8nInputNumber'],
 		replacement: 'N8nInputNumber',
@@ -86,7 +92,7 @@ export const wrappedComponentBans = [
 	},
 	{
 		library: 'reka-ui',
-		prefixes: ['RadioGroup'],
+		prefixes: ['RadioGroup', 'injectRadioGroup'],
 		allowedFolders: ['components/N8nRadioGroup', 'components/N8nSegmentControl'],
 		replacement: ['N8nRadioGroup', 'N8nSegmentControl'],
 	},
@@ -132,6 +138,12 @@ export const wrappedComponentBans = [
 		prefixes: ['Tree'],
 		allowedFolders: ['v2/components/Tree'],
 		replacement: 'N8nTree2',
+	},
+	{
+		library: 'reka-ui',
+		prefixes: ['VisuallyHidden'],
+		allowedFolders: ['components/N8nVisuallyHidden'],
+		replacement: 'N8nVisuallyHidden',
 	},
 	{
 		library: 'element-plus',

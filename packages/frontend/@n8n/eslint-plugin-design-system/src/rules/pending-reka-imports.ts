@@ -15,7 +15,6 @@ export const pendingRekaPrefixes = [
 	'FocusScope',
 	'HoverCard',
 	'Tabs',
-	'VisuallyHidden',
 ] as const;
 
 /**
@@ -29,7 +28,6 @@ export const pendingRekaExactNames = [
 	'DateValue',
 	'FlattenedItem',
 	'FocusOutsideEvent',
-	'injectRadioGroupRootContext',
 	'Label',
 	'PointerDownOutsideEvent',
 	'Primitive',
